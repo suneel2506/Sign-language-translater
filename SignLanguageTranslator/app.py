@@ -379,6 +379,18 @@ with st.sidebar:
 
     st.divider()
 
+    st.divider()
+
+# 🧠 Learn Mode
+st.markdown("### 🧠 Learning Mode")
+
+learn_mode = st.toggle("Enable Learning Mode")
+
+new_label = ""
+if learn_mode:
+    new_label = st.text_input("Enter new gesture name:")
+    st.info("Show the gesture in camera to collect data 📸")
+
     # ── Gesture Guide ──
     st.markdown("### 🤲 Gesture Guide")
     _guide = [
