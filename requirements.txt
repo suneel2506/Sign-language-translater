@@ -12,3 +12,4 @@ mediapipe
 numpy
 scikit-learn
 joblib
+gunicorn
