@@ -29,7 +29,7 @@ _MODEL_PATH = str(Path(__file__).parent / "hand_landmarker.task")
 
 class GestureDetector:
     """Real-time hand gesture detection using MediaPipe Tasks API."""
-
+    
     # ── MediaPipe Landmark Indices ──
     THUMB_TIP = 4
     THUMB_IP = 3
@@ -132,9 +132,30 @@ class GestureDetector:
 
     # ── Public API ───────────────────────────────────────────────────
 
+    def _detect_landmarks(self, frame: np.ndarray):
+        """
+        Shared helper: flip, convert, and detect landmarks.
+
+        Returns
+        -------
+        frame : np.ndarray   – the flipped BGR frame with landmarks drawn
+        result              – MediaPipe detection result
+        """
+        frame = cv2.flip(frame, 1)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = self.landmarker.detect(mp_image)
+
+        # Draw landmarks on every detected hand
+        if result.hand_landmarks:
+            for hand_lms in result.hand_landmarks:
+                frame = self._draw_hand_landmarks(frame, hand_lms)
+
+        return frame, result
+
     def process_frame(self, frame: np.ndarray) -> tuple[np.ndarray, str | None]:
         """
-        Process a single BGR frame.
+        Process a single BGR frame using *rule-based* gesture matching.
 
         Returns
         -------
@@ -143,32 +164,64 @@ class GestureDetector:
         gesture : str | None
             Recognized gesture name, or None.
         """
-        # Mirror the frame so it feels natural (selfie-mode)
-        frame = cv2.flip(frame, 1)
-
-        # Convert BGR → RGB for MediaPipe
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-
-        # Detect hand landmarks
-        result = self.landmarker.detect(mp_image)
-
+        frame, result = self._detect_landmarks(frame)
         gesture = None
 
         if result.hand_landmarks and result.handedness:
             for hand_lms, hand_cls in zip(result.hand_landmarks, result.handedness):
-                # Draw landmarks on the BGR frame
-                frame = self._draw_hand_landmarks(frame, hand_lms)
-
-                # Determine handedness
-                handedness_label = hand_cls[0].category_name  # "Left" or "Right"
-
-                # Detect finger states and match gesture
+                handedness_label = hand_cls[0].category_name
                 finger_states = self._get_finger_states(hand_lms, handedness_label)
                 gesture = self._match_gesture(finger_states)
 
         return frame, gesture
 
+    def get_raw_landmarks(self, frame: np.ndarray):
+        """
+        Process a frame and return the raw landmark list (for Learning Mode).
+
+        Returns
+        -------
+        frame : np.ndarray
+            The annotated frame.
+        landmarks : list | None
+            The first hand's 21 NormalizedLandmark objects, or None.
+        """
+        frame, result = self._detect_landmarks(frame)
+        if result.hand_landmarks:
+            return frame, result.hand_landmarks[0]
+        return frame, None
+
+    def process_frame_ml(self, frame: np.ndarray, model) -> tuple[np.ndarray, str | None, float]:
+        """
+        Process a frame using a trained ML model instead of rules.
+
+        Parameters
+        ----------
+        model : sklearn classifier
+            The model loaded from gesture_model.pkl.
+
+        Returns
+        -------
+        frame : np.ndarray
+        gesture : str | None
+        confidence : float
+        """
+        from learning_mode import predict_gesture
+
+        frame, result = self._detect_landmarks(frame)
+        gesture = None
+        confidence = 0.0
+
+        if result.hand_landmarks:
+            gesture, confidence = predict_gesture(model, result.hand_landmarks[0])
+            # Reject low-confidence predictions
+            if confidence < 0.6:
+                gesture = None
+                confidence = 0.0
+
+        return frame, gesture, confidence
+
     def release(self):
         """Release MediaPipe resources."""
         self.landmarker.close()
+
