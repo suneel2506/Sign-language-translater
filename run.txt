@@ -1,0 +1,2 @@
+cd c:\Users\sk600\Documents\PU\SignLanguageTranslator
+streamlit run app.py
