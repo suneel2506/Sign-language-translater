@@ -191,7 +191,7 @@ class GestureDetector:
             return frame, result.hand_landmarks[0]
         return frame, None
 
-    def process_frame_ml(self, frame: np.ndarray, model) -> tuple[np.ndarray, str | None, float]:
+    def process_frame_ml(self, frame: np.ndarray, model, scaler=None) -> tuple[np.ndarray, str | None, float]:
         """
         Process a frame using a trained ML model instead of rules.
 
@@ -199,6 +199,8 @@ class GestureDetector:
         ----------
         model : sklearn classifier
             The model loaded from gesture_model.pkl.
+        scaler : StandardScaler or None
+            The scaler used during training.
 
         Returns
         -------
@@ -213,13 +215,41 @@ class GestureDetector:
         confidence = 0.0
 
         if result.hand_landmarks:
-            gesture, confidence = predict_gesture(model, result.hand_landmarks[0])
+            gesture, confidence = predict_gesture(model, scaler, result.hand_landmarks[0])
             # Reject low-confidence predictions
-            if confidence < 0.6:
+            if confidence < 0.4:
                 gesture = None
                 confidence = 0.0
 
         return frame, gesture, confidence
+
+    def get_flat_landmarks(self, frame: np.ndarray):
+        """
+        Process a frame and return flat wrist-normalized landmarks
+        suitable for sequence buffering (Motion Mode).
+
+        Returns
+        -------
+        frame : np.ndarray
+            The annotated frame.
+        flat_features : list[float] | None
+            63 values (21 landmarks × 3 xyz, wrist-normalized), or None.
+        """
+        frame, result = self._detect_landmarks(frame)
+        if result.hand_landmarks:
+            landmarks = result.hand_landmarks[0]
+            base_x = landmarks[0].x
+            base_y = landmarks[0].y
+            base_z = landmarks[0].z
+            flat = []
+            for lm in landmarks:
+                flat.extend([
+                    lm.x - base_x,
+                    lm.y - base_y,
+                    lm.z - base_z,
+                ])
+            return frame, flat
+        return frame, None
 
     def release(self):
         """Release MediaPipe resources."""
