@@ -273,8 +273,8 @@ def load_dataset():
     if df.empty:
         raise ValueError("Dataset is empty")
 
-    X = df.iloc[:, 1:].values.astype(np.float32)
-    y = df.iloc[:, 0].values.astype(str)
+    X = df.iloc[:, 1:].to_numpy(dtype=np.float32)
+    y = df.iloc[:, 0].to_numpy(dtype=str)
 
     if len(y) == 0:
         raise ValueError("No data available")
