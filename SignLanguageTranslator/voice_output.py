@@ -6,7 +6,12 @@ Speech runs in a background thread so it never blocks the UI.
 """
 
 import threading
-import pyttsx3
+
+try:
+    import pyttsx3
+    _TTS_AVAILABLE = True
+except Exception:
+    _TTS_AVAILABLE = False
 
 
 def speak(text: str, rate: int = 150, volume: float = 0.9) -> None:
@@ -22,6 +27,9 @@ def speak(text: str, rate: int = 150, volume: float = 0.9) -> None:
     volume : float
         Volume level 0.0 – 1.0 (default 0.9).
     """
+    if not _TTS_AVAILABLE:
+        return
+
     def _worker():
         try:
             engine = pyttsx3.init()
